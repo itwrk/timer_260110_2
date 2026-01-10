@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ライフリッスンタイマー</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+</head>
+<body>
+  <div id="completionEffect" class="completion-effect-overlay">
+    <div class="starburst"></div>
+  </div>
+
+  <div id="iconModal" class="modal hidden">
+    <div class="modal-content">
+      <span class="close-modal">&times;</span>
+      <h2>アイコンを選択</h2>
+      <div class="icon-grid" id="presetIconGrid">
+        </div>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="header-container">
+      <h1><i class="fas fa-headphones"></i> ライフリッスンタイマー</h1>
+      <a href="edit.html" class="edit-link"><i class="fas fa-edit"></i> タスク編集</a>
+    </div>
+
+    <div class="csv-controls">
+      <input type="file" id="importCsvInput" accept=".csv" />
+      <button id="loadCsvButton" class="csv-btn"><i class="fas fa-file-import"></i> 読み込む</button>
+      <button id="exportCsvButton" class="csv-btn"><i class="fas fa-file-export"></i> CSV エクスポート</button>
+    </div>
+
+    <div class="add-task-section">
+      <div class="section-header" id="addTaskHeader">
+        <i class="fas fa-plus-circle"></i> 新規タスク追加
+        <i class="fas fa-chevron-down toggle-icon"></i>
+      </div>
+      <div class="section-content hidden" id="addTaskContent">
+        <div class="form-group">
+          <label for="newTaskName">タスク名:</label>
+          <input type="text" id="newTaskName" placeholder="新しいタスク名を入力" class="form-input">
+        </div>
+        <div class="form-group">
+          <label>アイコン:</label>
+          <button id="newTaskIconButton" class="icon-select-btn">
+            <i class="fa-solid fa-headphones"></i> <span>アイコンを変更</span>
+          </button>
+          <input type="hidden" id="newTaskIconValue" value="fa-solid fa-headphones">
+        </div>
+        <button id="addTaskButton" class="action-btn"><i class="fas fa-plus"></i> タスクを追加</button>
+      </div>
+    </div>
+
+    <div class="button-group" id="taskButtons"></div>
+
+    <div class="active-task-area">
+        <div id="currentTaskInfo" class="task-info-card">
+            <div class="task-status-message"><i class="fas fa-info-circle"></i> タスクを選択してください</div>
+        </div>
+    </div>
+    
+    <div class="timer-container">
+      <div class="progress-ring-container">
+        <svg class="progress-ring" width="200" height="200">
+          <circle class="progress-ring-circle-bg" cx="100" cy="100" r="90" />
+          <circle class="progress-ring-circle" cx="100" cy="100" r="90" />
+        </svg>
+        <div class="timer" id="timerDisplay">--:--</div>
+      </div>
+    </div>
+
+    <div class="settings-container hidden" id="timerSettings">
+      <label class="toggle-switch">
+        <input type="checkbox" id="autoAdvanceToggle" checked>
+        <span class="slider round"></span>
+        <span class="toggle-label">自動で次のステップへ進む</span>
+      </label>
+    </div>
+    
+    <div class="controls hidden" id="timerControls">
+      <button id="prevButton" class="control-btn"><i class="fas fa-step-backward"></i> 前へ</button>
+      <button id="pauseResumeButton" class="control-btn"><i class="fas fa-pause"></i> 一時停止</button>
+      <button id="nextButton" class="control-btn"><i class="fas fa-step-forward"></i> 次へ</button>
+      <button id="endButton" class="control-btn stop-btn"><i class="fas fa-stop"></i> 終了</button>
+    </div>
+
+    <div class="sequence-container">
+      <h3 id="sequenceTitle"><i class="fas fa-list-ol"></i> 実行予定のタスク</h3>
+      <p class="drag-hint"><i class="fas fa-grip-vertical"></i> ドラッグして並び替え可能</p>
+      <div class="sequence-list-container">
+        <div class="sequence-list" id="sequenceList"></div>
+      </div>
+    </div>
+
+    <div class="add-step-section hidden" id="addStepSection">
+      <div class="section-header">
+        <i class="fas fa-plus-circle"></i> 新規ステップ追加
+      </div>
+      <div class="section-content">
+        <div class="form-group">
+          <label for="newStepName">項目名:</label>
+          <input type="text" id="newStepName" placeholder="項目名" class="form-input">
+        </div>
+        <div class="form-group">
+          <label for="newStepText">読み上げテキスト:</label>
+          <input type="text" id="newStepText" placeholder="読み上げるテキスト" class="form-input">
+        </div>
+        <div class="form-group">
+            <label>メモ:</label>
+            <input type="text" id="newStepMemo" placeholder="メモ（任意）" class="form-input">
+        </div>
+        <div class="form-group">
+          <label>秒数:</label>
+          <div class="time-input-group">
+            <input type="number" id="newStepSeconds" value="30" min="1" class="form-input number-input">
+            <span class="unit">秒</span>
+            <div class="quick-time-buttons">
+                <button type="button" class="qt-btn" onclick="document.getElementById('newStepSeconds').value=30">30秒</button>
+                <button type="button" class="qt-btn" onclick="document.getElementById('newStepSeconds').value=60">1分</button>
+                <button type="button" class="qt-btn" onclick="document.getElementById('newStepSeconds').value=180">3分</button>
+            </div>
+          </div>
+        </div>
+        <button id="addStepButton" class="action-btn"><i class="fas fa-plus"></i> ステップを追加</button>
+      </div>
+    </div>
+
+    <div class="results-container">
+      <div class="results-header">
+        <h3><i class="fas fa-history"></i> 実行結果ログ</h3>
+        <div class="results-buttons">
+          <button id="copyResultsButton" class="copy-btn"><i class="fas fa-copy"></i> コピー</button>
+          <button id="clearResultsButton" class="clear-btn"><i class="fas fa-trash"></i> 消去</button>
+        </div>
+      </div>
+      
+      <div class="log-tabs">
+        <button class="log-tab-btn active" data-view="detail">詳細ログ</button>
+        <button class="log-tab-btn" data-view="summary">サマリー</button>
+      </div>
+
+      <table id="resultsTable">
+        <thead>
+          <tr id="resultsTableHeader"><th>日時</th><th>経過時間</th><th>内容</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
