@@ -134,29 +134,117 @@ function getTaskIconClass(task) {
   return 'fa-solid fa-headphones';
 }
 
-// --- 音声関連 ---
-function enableBackgroundAudioHack() {
-  const ctx = new (window.AudioContext || window.webkitAudioContext)();
-  const osc = ctx.createOscillator();
-  osc.frequency.value = 0;
-  osc.connect(ctx.destination);
-  osc.start();
+// =============================================
+// --- 音声エンジン（iOS対応強化版） ---
+// =============================================
+
+// AudioContextをシングルトンで管理（iOS用）
+let _audioCtx = null;
+function getAudioContext() {
+  if (!_audioCtx) {
+    _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  // suspendedなら再開（バックグラウンドから戻った場合など）
+  if (_audioCtx.state === 'suspended') {
+    _audioCtx.resume();
+  }
+  return _audioCtx;
 }
+
+// iOS 15秒ルール対策：無音のAudioBufferを定期再生してSpeechSynthesisを生かし続ける
+let _keepAliveTimer = null;
+function startSpeechKeepAlive() {
+  stopSpeechKeepAlive();
+  _keepAliveTimer = setInterval(() => {
+    const ctx = getAudioContext();
+    // 無音バッファを再生（SpeechSynthesisのウォームアップ維持）
+    const buf = ctx.createBuffer(1, ctx.sampleRate * 0.1, ctx.sampleRate);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.connect(ctx.destination);
+    src.start();
+    // SpeechSynthesisが止まっていないか確認し、止まっていれば再開を促す
+    if (window.speechSynthesis && !window.speechSynthesis.speaking && !window.speechSynthesis.pending) {
+      // paused状態なら再開
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
+    }
+  }, 10000); // 10秒ごと（15秒ルール対策として余裕を持つ）
+}
+function stopSpeechKeepAlive() {
+  if (_keepAliveTimer) {
+    clearInterval(_keepAliveTimer);
+    _keepAliveTimer = null;
+  }
+}
+
+// ユーザー操作でAudioContextを初期化（iOSはユーザー操作必須）
 document.addEventListener('click', function initBgAudio() {
-  enableBackgroundAudioHack();
+  getAudioContext();
   document.removeEventListener('click', initBgAudio);
+}, { once: true });
+
+// visibilitychange対応：画面が戻ったらAudioContextを確実に再開
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    getAudioContext(); // resume()が内部で呼ばれる
+  }
 });
 
+// speak本体：iOS対応強化版
+// cancel()直後のspeak()が無音になるiOSのバグに対応するため
+// 少し待ってからspeak()するラッパー
+let _currentUtterance = null;
 function speak(text) {
-  if (!window.speechSynthesis) return;
-  // 読み上げキャンセル（重複防止）
-  speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = 'ja-JP';
-  speechSynthesis.speak(u);
+  if (!window.speechSynthesis) return Promise.resolve();
+
   return new Promise((resolve) => {
-    u.onend = () => resolve();
-    setTimeout(resolve, text.length * 200);
+    // 前の発話をキャンセル
+    if (_currentUtterance) {
+      _currentUtterance.onend = null;
+      _currentUtterance.onerror = null;
+    }
+    window.speechSynthesis.cancel();
+
+    // iOS対策：cancel()直後は少し待つ（即座にspeak()すると無音になるバグ）
+    setTimeout(() => {
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = 'ja-JP';
+      u.rate = 1.0;
+      u.pitch = 1.0;
+      _currentUtterance = u;
+
+      // タイムアウト：テキストの長さに応じた最大待機時間（onendが発火しないiOSバグの保険）
+      const timeoutMs = Math.max(3000, text.length * 200);
+      const timer = setTimeout(() => {
+        u.onend = null;
+        u.onerror = null;
+        resolve();
+      }, timeoutMs);
+
+      u.onend = () => {
+        clearTimeout(timer);
+        resolve();
+      };
+      u.onerror = (e) => {
+        // 'interrupted'はcancel()によるもので正常。それ以外はログだけ出す
+        if (e.error !== 'interrupted') {
+          console.warn('SpeechSynthesis error:', e.error);
+        }
+        clearTimeout(timer);
+        resolve();
+      };
+
+      window.speechSynthesis.speak(u);
+
+      // iOS追加対策：speak直後にpausedになる場合があるため強制resume
+      setTimeout(() => {
+        if (window.speechSynthesis.paused) {
+          window.speechSynthesis.resume();
+        }
+      }, 100);
+    }, 50); // cancel()後50ms待つ
   });
 }
 
@@ -374,6 +462,8 @@ function forceStopTask() {
   timerId = null;
   preId = null;
   isPaused = false;
+  // keepAlive停止
+  stopSpeechKeepAlive();
   // ここではログ保存等はせず、クリーンにリセットする
   // もし途中経過を保存したい場合は recordCurrentTaskResult() を呼ぶ
 }
@@ -468,6 +558,9 @@ function startSequenceFor(name) {
   renderSequenceList(name);
   addStepSection.classList.remove('hidden');
   taskStartTime = new Date();
+  
+  // iOS音声途切れ対策：タスク実行中はkeepAliveを起動
+  startSpeechKeepAlive();
   
   runNextStep();
 }
@@ -625,6 +718,9 @@ endButton.addEventListener('click', () => {
   if (timerId) clearInterval(timerId); timerId = null;
   if (preId) clearInterval(preId); preId = null;
   
+  // keepAlive停止
+  stopSpeechKeepAlive();
+  
   // ログ記録（現在のステップまでの分）
   if (sequenceIndex < sequenceTasks.length) {
       recordCurrentTaskResult(remainingSeconds > 0);
@@ -637,6 +733,9 @@ endButton.addEventListener('click', () => {
 function handleCompletion() {
   if (isCompletionHandled) return;
   isCompletionHandled = true;
+  
+  // keepAlive停止（完了したので不要）
+  stopSpeechKeepAlive();
   
   const taskName = sequenceTasks.length > 0 ? sequenceTasks[0]['タスク名'] : 'タスク';
   
