@@ -86,6 +86,15 @@ progressRingCircle.style.strokeDasharray = `${progressRingCircumference} ${progr
 function updateProgressRing(percent) {
   const offset = progressRingCircumference - (percent / 100 * progressRingCircumference);
   progressRingCircle.style.strokeDashoffset = offset;
+  // インラインリング（スマホ用）
+  const inlineFg = document.getElementById('inlineRingFg');
+  if (inlineFg) {
+    const r = 48;
+    const circ = 2 * Math.PI * r;
+    inlineFg.style.strokeDasharray = `${circ} ${circ}`;
+    inlineFg.style.strokeDashoffset = circ - (percent / 100 * circ);
+    inlineFg.style.transition = 'stroke-dashoffset 0.3s';
+  }
 }
 
 // --- ヘルパー関数 ---
@@ -338,7 +347,13 @@ function setupTaskButtons() {
 }
 
 function resetActiveTaskDisplay() {
-  currentTaskInfo.innerHTML = '<div class="task-status-message"><i class="fas fa-info-circle"></i> タスクを選択してください</div>';
+  const stepInfoCol = document.getElementById('stepInfoCol');
+  if (stepInfoCol) {
+    stepInfoCol.innerHTML = '<div class="task-status-message"><i class="fas fa-info-circle"></i> タスクを選択してください</div>';
+  }
+  // インラインリングリセット
+  const inlineLabel = document.getElementById('inlineTimerLabel');
+  if (inlineLabel) { inlineLabel.textContent = '--:--'; inlineLabel.classList.remove('overtime'); }
   timerDisplay.textContent = '--:--';
   timerDisplay.className = 'timer';
   updateProgressRing(100);
@@ -347,8 +362,6 @@ function resetActiveTaskDisplay() {
   addStepSection.classList.add('hidden');
   sequenceList.innerHTML = '';
   sequenceTitle.innerHTML = '<i class="fas fa-list-ol"></i> 実行予定のタスク';
-  
-  // ボタン表示リセット
   prevButton.style.display = '';
   nextButton.style.display = '';
   endButton.style.display = '';
@@ -520,9 +533,16 @@ function updateTimerDisplay() {
   const m = Math.floor(absSeconds / 60);
   const s = absSeconds % 60;
   const timeString = `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
-  timerDisplay.textContent = remainingSeconds < 0 ? `+${timeString}` : timeString;
+  const displayStr = remainingSeconds < 0 ? `+${timeString}` : timeString;
+  timerDisplay.textContent = displayStr;
   if (remainingSeconds < 0) timerDisplay.classList.add('overtime'); else timerDisplay.classList.remove('overtime');
-  
+  // インラインリングラベル同期
+  const inlineLabel = document.getElementById('inlineTimerLabel');
+  if (inlineLabel) {
+    inlineLabel.textContent = displayStr;
+    if (remainingSeconds < 0) inlineLabel.classList.add('overtime');
+    else inlineLabel.classList.remove('overtime');
+  }
   const currentTask = sequenceTasks[sequenceIndex];
   if (currentTask) {
     const percent = (remainingSeconds > 0 && currentTask['秒数'] > 0) ? (remainingSeconds / currentTask['秒数']) * 100 : 0;
@@ -621,13 +641,15 @@ function handleCompletion() {
   const taskName = sequenceTasks.length > 0 ? sequenceTasks[0]['タスク名'] : 'タスク';
   
   // 画面リセット
-  currentTaskInfo.innerHTML = `
+  const stepInfoCol = document.getElementById('stepInfoCol');
+  const completionHTML = `
     <div class="task-status-message completion-message">
-      <i class="fas fa-check-circle" style="color: #27ae60; font-size: 3em; margin-bottom: 10px; display:block;"></i>
-      <div style="font-size: 1.5em; font-weight: bold; color: #2c3e50;">${taskName}</div>
-      <div style="margin-top: 10px;">完了！おつかれさま！</div>
+      <i class="fas fa-check-circle" style="color: #27ae60; font-size: 2.5em; margin-bottom: 8px; display:block;"></i>
+      <div style="font-size: 1.3em; font-weight: bold; color: #2c3e50;">${taskName}</div>
+      <div style="margin-top: 6px;">完了！おつかれさま！</div>
     </div>
   `;
+  if (stepInfoCol) stepInfoCol.innerHTML = completionHTML;
   
   // コントロール非表示
   timerControls.classList.add('hidden');
@@ -659,18 +681,24 @@ function handleCompletion() {
 function updateCurrentTaskDisplay(isPreCount = false, preCount = 0) {
   if (sequenceIndex >= sequenceTasks.length) return;
   const task = sequenceTasks[sequenceIndex];
-  const waitingMsg = isStepCompleted ? '<span style="color: #e67e22; font-weight:bold;">(完了 - 待機中)</span>' : '';
-  const mainText = isPreCount ? `<span style="color:#e67e22; font-weight:bold; font-size:1.2em;">開始まであと ${preCount} 秒...</span>` : (task['読み上げテキスト'] || '');
-  
-  currentTaskInfo.innerHTML = `
-    <div class="task-badges">
-      <div class="task-name-badge"><i class="${getTaskIconClass(task)}"></i> ${task['タスク名']}</div>
-      <div class="step-name-badge">${task['項目名']}</div>
-      ${waitingMsg}
-    </div>
-    <div class="reading-text-box">${mainText}</div>
-    ${task['メモ'] ? `<div class="memo-box"><i class="fas fa-sticky-note"></i> ${task['メモ']}</div>` : ''}
-  `;
+  const waitingBadge = isStepCompleted ? '<span class="waiting-badge">待機中</span>' : '';
+  const mainText = isPreCount
+    ? `<span style="color:#e67e22; font-weight:bold; font-size:1.1em;">開始まであと ${preCount} 秒...</span>`
+    : (task['読み上げテキスト'] || '');
+
+  const stepInfoCol = document.getElementById('stepInfoCol');
+  if (stepInfoCol) {
+    stepInfoCol.innerHTML = `
+      <div class="task-badges">
+        <div class="task-name-badge"><i class="${getTaskIconClass(task)}"></i> ${task['タスク名']}</div>
+        <div class="step-name-badge">${task['項目名']}</div>
+        ${waitingBadge}
+      </div>
+      <div class="reading-text-box">${mainText}</div>
+      ${task['メモ'] ? `<div class="memo-box"><i class="fas fa-sticky-note"></i> ${task['メモ']}</div>` : ''}
+    `;
+  }
+  // PC用（currentTaskInfo全体への書き込みは不要になったが互換のため残す）
 }
 
 function renderSequenceList(name) {

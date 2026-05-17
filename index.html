@@ -58,11 +58,29 @@
     <div class="button-group" id="taskButtons"></div>
 
     <div class="active-task-area">
-        <div id="currentTaskInfo" class="task-info-card">
+      <div id="currentTaskInfo" class="task-info-card">
+        <div class="task-info-row">
+          <!-- スマホ用インラインリング -->
+          <div class="timer-ring-wrap" id="inlineRingWrap">
+            <svg width="110" height="110" viewBox="0 0 110 110" id="inlineRingSvg">
+              <circle id="inlineRingBg" cx="55" cy="55" r="48"
+                stroke="#eee" stroke-width="8" fill="none"/>
+              <circle id="inlineRingFg" cx="55" cy="55" r="48"
+                stroke="#3498db" stroke-width="8" fill="none"
+                stroke-dasharray="301.59" stroke-dashoffset="0"
+                stroke-linecap="round"/>
+            </svg>
+            <div class="timer-ring-label" id="inlineTimerLabel">--:--</div>
+          </div>
+          <!-- ステップ情報（右側） -->
+          <div class="step-info-col" id="stepInfoCol">
             <div class="task-status-message"><i class="fas fa-info-circle"></i> タスクを選択してください</div>
+          </div>
         </div>
+      </div>
     </div>
-    
+
+    <!-- PC用タイマーリング（スマホでは非表示） -->
     <div class="timer-container">
       <div class="progress-ring-container">
         <svg class="progress-ring" width="200" height="200">
@@ -83,7 +101,7 @@
     
     <div class="controls hidden" id="timerControls">
       <button id="prevButton" class="control-btn"><i class="fas fa-step-backward"></i> 前へ</button>
-      <button id="pauseResumeButton" class="control-btn"><i class="fas fa-pause"></i> 一時停止</button>
+      <button id="pauseResumeButton" class="control-btn pause-main"><i class="fas fa-pause"></i> 一時停止</button>
       <button id="nextButton" class="control-btn"><i class="fas fa-step-forward"></i> 次へ</button>
       <button id="endButton" class="control-btn stop-btn"><i class="fas fa-stop"></i> 終了</button>
     </div>
