@@ -74,77 +74,93 @@ h1 i { color: #3498db; margin-right: 8px; }
 
 /* --- タスクボタン群 --- */
 .button-group {
-  display: flex; flex-wrap: wrap; gap: 8px;
-  margin-bottom: 14px; justify-content: flex-start;
+  display: flex; flex-wrap: wrap; gap: 5px;
+  margin-bottom: 10px; justify-content: flex-start;
 }
 .task-btn {
   background-color: #fff; color: #3498db;
-  border: 2px solid #3498db; padding: 7px 15px; font-size: 13px;
-  display: flex; align-items: center; justify-content: center; gap: 6px;
-  border-radius: 20px;
+  border: 1.5px solid #3498db; padding: 4px 10px; font-size: 12px;
+  display: flex; align-items: center; justify-content: center; gap: 4px;
+  border-radius: 16px; font-weight: bold;
 }
 .task-btn:hover { background-color: #3498db; color: white; }
 .task-btn.running { background-color: #3498db; color: white; }
 
 /* =============================================
-   ★ メインアクティブエリア
+   ★ メインアクティブエリア（PC/スマホ共通横レイアウト）
    ============================================= */
 .active-task-area { margin-bottom: 10px; }
 .task-info-card {
-  background: #fff; border-radius: 14px; padding: 14px;
+  background: #fff; border-radius: 14px; padding: 12px 14px;
   box-shadow: 0 2px 12px rgba(0,0,0,0.07); border: 1px solid #eee;
-}
-/* 横並びコンテナ（スマホ用） */
-.task-info-row {
   display: flex; align-items: center; gap: 14px;
 }
-/* インラインリング（スマホ用） */
+
+/* タイマーリング（PC/スマホ共通で常に表示） */
 .timer-ring-wrap {
-  position: relative; flex-shrink: 0; width: 110px; height: 110px;
+  position: relative; flex-shrink: 0; width: 120px; height: 120px;
 }
 .timer-ring-wrap svg { transform: rotate(-90deg); display: block; }
 .timer-ring-label {
   position: absolute; top: 50%; left: 50%;
   transform: translate(-50%, -50%);
-  font-size: 20px; font-weight: bold; color: #2c3e50;
+  font-size: 22px; font-weight: bold; color: #2c3e50;
   white-space: nowrap; text-align: center; letter-spacing: -0.5px;
 }
 .timer-ring-label.overtime { color: #e74c3c; }
-/* 右側テキストカラム */
+
+/* 右側カラム */
 .step-info-col {
-  flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px;
+  flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px;
 }
-.task-badges { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+
+/* タスク名バッジ（小さめ） */
 .task-name-badge {
-  background: #2c3e50; color: white; padding: 3px 10px; border-radius: 20px;
-  font-size: 11px; font-weight: bold;
-  display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
+  background: #95a5a6; color: white; padding: 2px 8px; border-radius: 12px;
+  font-size: 10px; font-weight: bold;
+  display: inline-flex; align-items: center; gap: 3px; white-space: nowrap;
 }
-.step-name-badge {
-  background: #3498db; color: white; padding: 3px 10px; border-radius: 20px;
-  font-size: 11px; font-weight: bold; white-space: nowrap;
+
+/* ★ ステップ名（メイン・大きく目立つ） */
+.step-name-main {
+  font-size: 22px; font-weight: bold; color: #2c3e50;
+  line-height: 1.2; word-break: break-all;
 }
+@media (max-width: 600px) {
+  .step-name-main { font-size: 18px; }
+}
+
+/* 読み上げテキスト（控えめ） */
+.reading-text-box {
+  font-size: 11px; line-height: 1.5; color: #999;
+  background: none; padding: 0;
+  max-height: 44px; overflow-y: auto;
+}
+
+/* 次のステップ表示 */
+.next-step-hint {
+  font-size: 11px; color: #aaa;
+  display: flex; align-items: center; gap: 4px;
+  border-top: 1px dashed #eee; padding-top: 4px; margin-top: 2px;
+}
+.next-step-hint strong { color: #7f8c8d; }
+
+/* 待機バッジ */
 .waiting-badge {
-  background: #e67e22; color: white; padding: 3px 8px; border-radius: 20px;
+  background: #e67e22; color: white; padding: 2px 7px; border-radius: 12px;
   font-size: 10px; font-weight: bold;
 }
-/* 読み上げテキスト（コンパクト） */
-.reading-text-box {
-  font-size: 13px; line-height: 1.55; color: #333;
-  background: #f8f9fa; padding: 9px 11px; border-radius: 8px;
-  max-height: 76px; overflow-y: auto;
-}
-/* 吹き出し（PCのみ） */
-.memo-box {
-  font-size: 11px; color: #888;
-  display: flex; align-items: flex-start; gap: 4px;
-  background: #fff8e1; padding: 5px 8px; border-radius: 4px;
-  border: 1px dashed #f1c40f;
-}
-.task-status-message { color: #999; font-size: 15px; padding: 20px; text-align: center; }
 
-/* PCタイマーリング（デフォルト非表示、PC時に表示） */
-.timer-container { display: none; }
+/* メモ */
+.memo-box {
+  font-size: 10px; color: #bbb;
+  display: flex; align-items: flex-start; gap: 3px;
+}
+
+.task-status-message { color: #999; font-size: 14px; padding: 16px; text-align: center; }
+
+/* PCタイマーリングは使わない（ダミーで非表示） */
+.timer-container { display: none !important; }
 .progress-ring-container { position: relative; width: 200px; height: 200px; }
 .progress-ring { transform: rotate(-90deg); }
 .progress-ring-circle {
@@ -295,24 +311,28 @@ td { padding: 7px; border-bottom: 1px solid #eee; }
 .completion-effect-overlay.active { animation: flash 0.5s forwards; }
 @keyframes flash { 0% { opacity: 0; } 30% { opacity: 1; background: rgba(255,255,255,0.5); } 100% { opacity: 0; } }
 
+/* ステップ追加フォーム横並び */
+.step-add-grid { display: flex; flex-direction: column; gap: 6px; }
+.step-add-row { display: flex; align-items: center; gap: 8px; }
+.step-add-label {
+  flex: 0 0 60px; font-size: 12px; font-weight: bold;
+  color: #666; text-align: right; white-space: nowrap;
+}
+.step-add-input { flex: 1; }
+
 /* =============================================
    PC（601px以上）
    ============================================= */
 @media (min-width: 601px) {
-  /* PCではリングを独立表示 */
-  .timer-container { display: flex; justify-content: center; margin: 16px 0; }
-  /* PCではインラインリングを非表示 */
-  .timer-ring-wrap { display: none; }
-  /* PCではtask-info-rowを縦に戻す */
-  .task-info-row { flex-direction: column; align-items: flex-start; gap: 8px; }
-  .reading-text-box { font-size: 15px; max-height: none; }
-  .task-name-badge { font-size: 13px; padding: 4px 12px; }
-  .step-name-badge { font-size: 13px; padding: 4px 12px; }
+  /* PCでもリングは横並びのまま（inlineRingWrapは常に表示） */
+  .timer-ring-wrap { display: block; }
+  .task-info-card { align-items: flex-start; }
+  .step-name-main { font-size: 24px; }
   .controls { gap: 15px; }
   .control-btn { padding: 12px 24px; font-size: 16px; }
   .control-btn.pause-main { padding: 13px 28px; font-size: 18px; }
-  .button-group { justify-content: center; }
-  .task-btn { padding: 10px 20px; font-size: 14px; border-radius: 6px; }
+  .button-group { justify-content: flex-start; }
+  .task-btn { padding: 5px 12px; font-size: 12px; }
   .seq-inputs { flex-wrap: nowrap; }
 }
 
@@ -334,6 +354,3 @@ td { padding: 7px; border-bottom: 1px solid #eee; }
   .seq-time-wrapper { width: 100%; }
   .results-buttons { display: flex; gap: 5px; }
 }
-
-
-

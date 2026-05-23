@@ -58,7 +58,7 @@ const progressRingCircle = document.querySelector('.progress-ring-circle');
 const clearResultsButton = document.getElementById('clearResultsButton');
 const copyResultsButton = document.getElementById('copyResultsButton');
 
-// 追加セクション
+// 追加セクション（index.htmlから削除済みのため null の場合あり）
 const addTaskHeader = document.getElementById('addTaskHeader');
 const addTaskContent = document.getElementById('addTaskContent');
 const newTaskName = document.getElementById('newTaskName');
@@ -78,18 +78,23 @@ const closeModalBtn = document.querySelector('.close-modal');
 const presetIconGrid = document.getElementById('presetIconGrid');
 const logTabBtns = document.querySelectorAll('.log-tab-btn');
 
-// --- プログレスリング設定 ---
-const progressRingRadius = parseInt(progressRingCircle.getAttribute('r'));
+// --- プログレスリング設定（PC用リングはnullの場合あり） ---
+const progressRingRadius = progressRingCircle ? parseInt(progressRingCircle.getAttribute('r')) : 90;
 const progressRingCircumference = 2 * Math.PI * progressRingRadius;
-progressRingCircle.style.strokeDasharray = `${progressRingCircumference} ${progressRingCircumference}`;
+if (progressRingCircle) {
+  progressRingCircle.style.strokeDasharray = `${progressRingCircumference} ${progressRingCircumference}`;
+}
 
 function updateProgressRing(percent) {
-  const offset = progressRingCircumference - (percent / 100 * progressRingCircumference);
-  progressRingCircle.style.strokeDashoffset = offset;
-  // インラインリング（スマホ用）
+  // PC用リングは廃止（progressRingCircleがなくても落ちないようにガード）
+  if (progressRingCircle) {
+    const offset = progressRingCircumference - (percent / 100 * progressRingCircumference);
+    progressRingCircle.style.strokeDashoffset = offset;
+  }
+  // インラインリング（r=52で計算）
   const inlineFg = document.getElementById('inlineRingFg');
   if (inlineFg) {
-    const r = 48;
+    const r = 52;
     const circ = 2 * Math.PI * r;
     inlineFg.style.strokeDasharray = `${circ} ${circ}`;
     inlineFg.style.strokeDashoffset = circ - (percent / 100 * circ);
@@ -374,12 +379,15 @@ function initApp() {
 window.addEventListener('DOMContentLoaded', () => {
   initApp();
   updateProgressRing(100);
-  addTaskHeader.addEventListener('click', () => {
-    addTaskContent.classList.toggle('hidden');
-    addTaskHeader.classList.toggle('active');
-  });
-  addTaskButton.addEventListener('click', addNewTask);
-  addStepButton.addEventListener('click', addNewStep);
+  // 新規タスク追加はedit.htmlに移動したためnullガード
+  if (addTaskHeader) {
+    addTaskHeader.addEventListener('click', () => {
+      addTaskContent.classList.toggle('hidden');
+      addTaskHeader.classList.toggle('active');
+    });
+  }
+  if (addTaskButton) addTaskButton.addEventListener('click', addNewTask);
+  if (addStepButton) addStepButton.addEventListener('click', addNewStep);
   logTabBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       logTabBtns.forEach(b => b.classList.remove('active'));
@@ -471,6 +479,7 @@ function forceStopTask() {
 // --- アイコンモーダル ---
 let currentIconSelectCallback = null;
 function initIconModal() {
+  if (!presetIconGrid) return;
   presetIconGrid.innerHTML = '';
   PRESET_ICONS.forEach(iconClass => {
     const div = document.createElement('div');
@@ -479,14 +488,17 @@ function initIconModal() {
     div.onclick = () => selectIcon(iconClass);
     presetIconGrid.appendChild(div);
   });
-  closeModalBtn.onclick = () => iconModal.classList.add('hidden');
+  if (closeModalBtn) closeModalBtn.onclick = () => iconModal.classList.add('hidden');
   window.onclick = (e) => { if (e.target === iconModal) iconModal.classList.add('hidden'); };
-  newTaskIconButton.onclick = () => {
-    openIconModal((selectedIcon) => {
-      newTaskIconValue.value = selectedIcon;
-      newTaskIconButton.innerHTML = `<i class="${selectedIcon}"></i> <span>変更</span>`;
-    });
-  };
+  // newTaskIconButtonはindex.htmlには存在しない（edit.htmlに移動済み）
+  if (newTaskIconButton) {
+    newTaskIconButton.onclick = () => {
+      openIconModal((selectedIcon) => {
+        newTaskIconValue.value = selectedIcon;
+        newTaskIconButton.innerHTML = `<i class="${selectedIcon}"></i> <span>変更</span>`;
+      });
+    };
+  }
 }
 function openIconModal(callback) {
   currentIconSelectCallback = callback;
@@ -643,13 +655,46 @@ function updateTimerDisplay() {
   }
 }
 
+// カウントダウン管理フラグ（ステップごとにリセット）
+let _countdownSpoken = false;
+let _countdownNumbers = [];
+
+// 数字だけのカウントダウン用：cancel()せず割り込み発話
+function speakQuiet(text) {
+  if (!window.speechSynthesis) return;
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = 'ja-JP';
+  u.rate = 1.1;
+  window.speechSynthesis.speak(u);
+}
+
 function startTimer() {
   if (timerId) clearInterval(timerId);
+  _countdownSpoken = false;
+  _countdownNumbers = [];
+
   timerId = setInterval(() => {
     if (isPaused) return;
     remainingSeconds--;
     updateTimerDisplay();
+
+    // 残り10秒アナウンス
+    if (remainingSeconds === 10 && !_countdownSpoken) {
+      _countdownSpoken = true;
+      const task = sequenceTasks[sequenceIndex];
+      const itemName = task ? task['項目名'] : '';
+      speak(`${itemName}、残り10秒です`);
+    }
+
+    // 残り5〜1秒カウントダウン（cancel不要の割り込み発話）
+    if (remainingSeconds >= 1 && remainingSeconds <= 5 && !_countdownNumbers.includes(remainingSeconds)) {
+      _countdownNumbers.push(remainingSeconds);
+      speakQuiet(String(remainingSeconds));
+    }
+
     if (remainingSeconds === 0) {
+      _countdownSpoken = false;
+      _countdownNumbers = [];
       if (autoAdvanceToggle.checked) {
         recordCurrentTaskResult();
         sequenceIndex++;
@@ -780,24 +825,38 @@ function handleCompletion() {
 function updateCurrentTaskDisplay(isPreCount = false, preCount = 0) {
   if (sequenceIndex >= sequenceTasks.length) return;
   const task = sequenceTasks[sequenceIndex];
+  const nextTask = sequenceTasks[sequenceIndex + 1];
+
+  // プリカウント中は別表示
+  if (isPreCount) {
+    const stepInfoCol = document.getElementById('stepInfoCol');
+    if (stepInfoCol) {
+      stepInfoCol.innerHTML = `
+        <div class="task-name-badge"><i class="${getTaskIconClass(task)}"></i> ${task['タスク名']}</div>
+        <div class="step-name-main" style="color:#e67e22;">開始まであと ${preCount} 秒...</div>
+      `;
+    }
+    return;
+  }
+
   const waitingBadge = isStepCompleted ? '<span class="waiting-badge">待機中</span>' : '';
-  const mainText = isPreCount
-    ? `<span style="color:#e67e22; font-weight:bold; font-size:1.1em;">開始まであと ${preCount} 秒...</span>`
-    : (task['読み上げテキスト'] || '');
+  const nextHint = nextTask
+    ? `<div class="next-step-hint"><i class="fas fa-arrow-right"></i> 次: <strong>${nextTask['項目名']}</strong></div>`
+    : `<div class="next-step-hint"><i class="fas fa-flag-checkered"></i> 次: <strong>完了</strong></div>`;
 
   const stepInfoCol = document.getElementById('stepInfoCol');
   if (stepInfoCol) {
     stepInfoCol.innerHTML = `
-      <div class="task-badges">
+      <div style="display:flex; align-items:center; gap:5px; flex-wrap:wrap;">
         <div class="task-name-badge"><i class="${getTaskIconClass(task)}"></i> ${task['タスク名']}</div>
-        <div class="step-name-badge">${task['項目名']}</div>
         ${waitingBadge}
       </div>
-      <div class="reading-text-box">${mainText}</div>
+      <div class="step-name-main">${task['項目名']}</div>
+      <div class="reading-text-box">${task['読み上げテキスト'] || ''}</div>
       ${task['メモ'] ? `<div class="memo-box"><i class="fas fa-sticky-note"></i> ${task['メモ']}</div>` : ''}
+      ${nextHint}
     `;
   }
-  // PC用（currentTaskInfo全体への書き込みは不要になったが互換のため残す）
 }
 
 function renderSequenceList(name) {

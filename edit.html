@@ -90,6 +90,35 @@
       <a href="index.html" class="back-link"><i class="fas fa-arrow-left"></i> タイマーに戻る</a>
     </div>
 
+    <!-- 新規タスク追加（edit.htmlに移動） -->
+    <div class="task-edit-card" style="margin-bottom:20px;">
+      <div class="task-edit-header" style="cursor:pointer;" onclick="toggleNewTaskForm()">
+        <div class="task-title-group">
+          <i class="fas fa-plus-circle" style="color:#2ecc71; font-size:20px;"></i>
+          <span style="font-size:16px; font-weight:bold;">新規タスク追加</span>
+        </div>
+        <i class="fas fa-chevron-down" id="newTaskChevron"></i>
+      </div>
+      <div id="newTaskFormArea" style="display:none; padding:15px; border-top:1px solid #eee;">
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
+          <div style="flex:1; min-width:150px;">
+            <div class="label-mini" style="margin-bottom:4px;">タスク名</div>
+            <input type="text" id="newTaskName" placeholder="新しいタスク名" class="edit-input" style="width:100%;box-sizing:border-box;">
+          </div>
+          <div style="flex:0 0 auto;">
+            <div class="label-mini" style="margin-bottom:4px;">アイコン</div>
+            <button id="newTaskIconButton" onclick="openIconModalForNewTask()" style="padding:7px 12px; background:#fff; border:1px solid #ddd; border-radius:4px; cursor:pointer; font-size:18px;">
+              <i id="newTaskIconPreview" class="fa-solid fa-headphones"></i>
+            </button>
+            <input type="hidden" id="newTaskIconValue" value="fa-solid fa-headphones">
+          </div>
+          <button onclick="addNewTaskFromEdit()" style="padding:8px 18px; background:#2ecc71; color:white; border:none; border-radius:4px; font-weight:bold; cursor:pointer; flex:0 0 auto;">
+            <i class="fas fa-plus"></i> 追加
+          </button>
+        </div>
+      </div>
+    </div>
+
     <div id="taskListContainer"></div>
     
     <div style="text-align: center; margin-top: 40px;">
@@ -298,7 +327,10 @@
       iconModal.classList.remove('hidden');
     }
     function selectIcon(iconClass) {
-      if (currentEditingTaskName) {
+      if (currentEditingTaskName === '__NEW_TASK__') {
+        document.getElementById('newTaskIconValue').value = iconClass;
+        document.getElementById('newTaskIconPreview').className = iconClass;
+      } else if (currentEditingTaskName) {
         allTasks.forEach(t => { if (t['タスク名'] === currentEditingTaskName) t['アイコン'] = iconClass; });
         saveTasks(); renderAll();
       }
@@ -309,6 +341,38 @@
       loadTasks();
       initModal();
     });
+
+    function toggleNewTaskForm() {
+      const area = document.getElementById('newTaskFormArea');
+      const chevron = document.getElementById('newTaskChevron');
+      const isOpen = area.style.display !== 'none';
+      area.style.display = isOpen ? 'none' : 'block';
+      chevron.style.transform = isOpen ? '' : 'rotate(180deg)';
+    }
+
+    function openIconModalForNewTask() {
+      currentEditingTaskName = '__NEW_TASK__';
+      iconModal.classList.remove('hidden');
+    }
+
+    function addNewTaskFromEdit() {
+      const nameInput = document.getElementById('newTaskName');
+      const iconInput = document.getElementById('newTaskIconValue');
+      const name = nameInput.value.trim();
+      if (!name) return alert('タスク名を入力してください');
+      if (allTasks.some(t => t['タスク名'] === name)) return alert('同じ名前のタスクが既にあります');
+      const icon = iconInput.value || 'fa-solid fa-headphones';
+      allTasks.push({
+        'タスク名': name, '項目名': '1回目', '読み上げテキスト': name + 'を始めます', '秒数': 30,
+        '順番': 1, 'アイコン': icon, 'メモ': ''
+      });
+      saveTasks();
+      renderAll();
+      nameInput.value = '';
+      // フォームを閉じる
+      document.getElementById('newTaskFormArea').style.display = 'none';
+      document.getElementById('newTaskChevron').style.transform = '';
+    }
   </script>
 </body>
 </html>
