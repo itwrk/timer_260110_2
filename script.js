@@ -862,28 +862,115 @@ function updateCurrentTaskDisplay(isPreCount = false, preCount = 0) {
 function renderSequenceList(name) {
   sequenceTitle.innerHTML = `<i class="fas fa-list-ol"></i> ${name} のタスク`;
   sequenceList.innerHTML = '';
-  
+
   sequenceTasks.forEach((task, i) => {
     if (i < sequenceIndex) return;
-    
+
     const item = document.createElement('div');
-    item.className = 'sequence-item' + (i === sequenceIndex ? ' active' : '') + (isStepCompleted && i === sequenceIndex ? ' waiting-next' : '');
-    
+    item.className = 'sequence-item' +
+      (i === sequenceIndex ? ' active' : '') +
+      (isStepCompleted && i === sequenceIndex ? ' waiting-next' : '');
+    item.setAttribute('data-seq-idx', i);
+
+    // テキスト省略ヘルパー
+    const truncate = (str, len) => str && str.length > len ? str.slice(0, len) + '…' : (str || '');
+
     item.innerHTML = `
       <div class="drag-handle ${i===sequenceIndex?'disabled':''}"><i class="fas fa-grip-vertical"></i></div>
       <div class="label-container"><i class="${getTaskIconClass(task)}"></i></div>
-      <div class="seq-inputs">
-        <input type="text" class="seq-name-input" value="${task['項目名']||''}" placeholder="項目名" data-idx="${i}" onchange="updateTaskField(this, '項目名')">
-        <input type="text" class="seq-text-input" value="${task['読み上げテキスト']||''}" placeholder="読み上げ" data-idx="${i}" onchange="updateTaskField(this, '読み上げテキスト')">
-        <input type="text" class="seq-memo-input" value="${task['メモ']||''}" placeholder="メモ" data-idx="${i}" onchange="updateTaskField(this, 'メモ')">
-        <div class="seq-time-wrapper">
-            <input type="number" class="seq-seconds-input" value="${task['秒数']||30}" min="1" data-idx="${i}" onchange="updateTaskField(this, '秒数')">
-            <button class="mini-qt-btn" onclick="setQuickTime(${i}, 30)">30</button>
-            <button class="mini-qt-btn" onclick="setQuickTime(${i}, 60)">60</button>
+
+      <!-- コンパクト表示 -->
+      <div class="seq-compact" title="クリックして編集">
+        <span class="seq-compact-name">${task['項目名'] || ''}</span>
+        <span class="seq-compact-text">${truncate(task['読み上げテキスト'], 20)}</span>
+        <span class="seq-compact-memo">${truncate(task['メモ'], 12)}</span>
+        <span class="seq-compact-time">${task['秒数'] || 30}秒</span>
+        <i class="fas fa-pencil-alt seq-edit-icon"></i>
+      </div>
+
+      <!-- 編集フォーム（初期非表示） -->
+      <div class="seq-edit-form" style="display:none;">
+        <div class="seq-edit-row">
+          <input type="text" class="seq-input seq-name-input" value="${task['項目名']||''}" placeholder="項目名" data-idx="${i}" data-field="項目名">
+          <input type="text" class="seq-input seq-text-input" value="${task['読み上げテキスト']||''}" placeholder="読み上げ" data-idx="${i}" data-field="読み上げテキスト">
+          <input type="text" class="seq-input seq-memo-input" value="${task['メモ']||''}" placeholder="メモ" data-idx="${i}" data-field="メモ">
+          <div class="seq-time-wrapper">
+            <input type="number" class="seq-input seq-seconds-input" value="${task['秒数']||30}" min="1" data-idx="${i}" data-field="秒数">
+            <button class="mini-qt-btn" type="button" data-idx="${i}" data-sec="30">30</button>
+            <button class="mini-qt-btn" type="button" data-idx="${i}" data-sec="60">60</button>
+          </div>
         </div>
       </div>
+
       <button class="delete-btn" onclick="deleteSequenceTask(${i})" ${i===sequenceIndex?'disabled':''}><i class="fas fa-trash"></i></button>
     `;
+
+    // --- コンパクト↔編集の切り替えロジック ---
+    const compact = item.querySelector('.seq-compact');
+    const editForm = item.querySelector('.seq-edit-form');
+    const inputs = item.querySelectorAll('.seq-input');
+
+    function openEdit() {
+      compact.style.display = 'none';
+      editForm.style.display = 'block';
+      // 最初の入力欄にフォーカス
+      editForm.querySelector('input')?.focus();
+    }
+
+    function saveAndClose() {
+      // 全フィールドを保存
+      inputs.forEach(input => {
+        const idx = parseInt(input.dataset.idx);
+        const field = input.dataset.field;
+        if (!field) return;
+        let val = input.value;
+        if (field === '秒数') val = parseInt(val) || 30;
+        sequenceTasks[idx][field] = val;
+      });
+      saveTasksData();
+      // コンパクト表示を更新してから閉じる
+      const idx = i;
+      const t = sequenceTasks[idx];
+      compact.querySelector('.seq-compact-name').textContent = t['項目名'] || '';
+      compact.querySelector('.seq-compact-text').textContent = truncate(t['読み上げテキスト'], 20);
+      compact.querySelector('.seq-compact-memo').textContent = truncate(t['メモ'], 12);
+      compact.querySelector('.seq-compact-time').textContent = (t['秒数'] || 30) + '秒';
+      editForm.style.display = 'none';
+      compact.style.display = '';
+      if (idx === sequenceIndex) updateCurrentTaskDisplay();
+    }
+
+    // クリック/タップで開く
+    compact.addEventListener('click', openEdit);
+
+    // フォームの外クリックで保存・閉じる
+    // focusoutはフォーム内の移動でも発火するので少し待つ
+    editForm.addEventListener('focusout', (e) => {
+      setTimeout(() => {
+        if (!editForm.contains(document.activeElement)) {
+          saveAndClose();
+        }
+      }, 150);
+    });
+
+    // Enterキーでも保存
+    editForm.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { saveAndClose(); }
+      if (e.key === 'Escape') {
+        editForm.style.display = 'none';
+        compact.style.display = '';
+      }
+    });
+
+    // クイックタイムボタン
+    editForm.querySelectorAll('.mini-qt-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const sec = parseInt(btn.dataset.sec);
+        const secInput = editForm.querySelector('.seq-seconds-input');
+        secInput.value = sec;
+      });
+    });
+
     sequenceList.appendChild(item);
   });
   initSortable();

@@ -197,42 +197,96 @@
         
         const listContainer = card.querySelector(`#steps-${name}`);
         tasks.forEach((task, idx) => {
+          const globalIdx = allTasks.indexOf(task);
           const item = document.createElement('div');
           item.className = 'step-item';
-          item.setAttribute('data-id', allTasks.indexOf(task));
-          
+          item.setAttribute('data-id', globalIdx);
+
+          const truncate = (str, len) => str && str.length > len ? str.slice(0, len) + '…' : (str || '');
+
           item.innerHTML = `
             <div class="step-handle"><i class="fas fa-grip-vertical"></i></div>
-            <div class="step-inputs-row">
-                <div class="input-wrapper">
-                    <span class="label-mini">項目名</span>
-                    <input type="text" class="edit-input" value="${task['項目名'] || ''}" onchange="updateTaskByIndex(${allTasks.indexOf(task)}, '項目名', this.value)">
-                </div>
-                <div class="input-wrapper wide">
-                    <span class="label-mini">読み上げ</span>
-                    <input type="text" class="edit-input" value="${task['読み上げテキスト'] || ''}" onchange="updateTaskByIndex(${allTasks.indexOf(task)}, '読み上げテキスト', this.value)">
-                </div>
-                <div class="input-wrapper memo">
-                    <span class="label-mini">メモ</span>
-                    <input type="text" class="edit-input" value="${task['メモ'] || ''}" placeholder="メモ" onchange="updateTaskByIndex(${allTasks.indexOf(task)}, 'メモ', this.value)">
-                </div>
-                <div class="input-wrapper time">
-                    <span class="label-mini">秒数</span>
-                    <div class="time-control">
-                        <div class="time-row-main">
-                            <input type="number" class="edit-input" style="text-align:center;" id="time-${allTasks.indexOf(task)}" value="${task['秒数'] || 30}" onchange="updateTaskByIndex(${allTasks.indexOf(task)}, '秒数', this.value)">
-                            <span>秒</span>
-                        </div>
-                        <div class="time-row-btns">
-                            <button class="tb-btn" onclick="setStepTime(${allTasks.indexOf(task)}, 30)">30</button>
-                            <button class="tb-btn" onclick="setStepTime(${allTasks.indexOf(task)}, 60)">60</button>
-                            <button class="tb-btn" onclick="setStepTime(${allTasks.indexOf(task)}, 180)">180</button>
-                        </div>
-                    </div>
-                </div>
+
+            <!-- コンパクト表示 -->
+            <div class="seq-compact" title="クリックして編集">
+              <span class="seq-compact-name">${task['項目名'] || ''}</span>
+              <span class="seq-compact-text">${truncate(task['読み上げテキスト'], 24)}</span>
+              <span class="seq-compact-memo">${truncate(task['メモ'], 12)}</span>
+              <span class="seq-compact-time">${task['秒数'] || 30}秒</span>
+              <i class="fas fa-pencil-alt seq-edit-icon"></i>
             </div>
-            <div class="step-delete"><button class="delete-btn" style="padding:5px;" onclick="deleteStep(${allTasks.indexOf(task)})"><i class="fas fa-trash"></i></button></div>
+
+            <!-- 編集フォーム -->
+            <div class="seq-edit-form" style="display:none;">
+              <div class="seq-edit-row">
+                <input type="text" class="seq-input seq-name-input" value="${task['項目名']||''}" placeholder="項目名" data-gidx="${globalIdx}" data-field="項目名">
+                <input type="text" class="seq-input seq-text-input" value="${task['読み上げテキスト']||''}" placeholder="読み上げ" data-gidx="${globalIdx}" data-field="読み上げテキスト">
+                <input type="text" class="seq-input seq-memo-input" value="${task['メモ']||''}" placeholder="メモ" data-gidx="${globalIdx}" data-field="メモ">
+                <div class="seq-time-wrapper">
+                  <input type="number" class="seq-input seq-seconds-input" value="${task['秒数']||30}" min="1" data-gidx="${globalIdx}" data-field="秒数" style="width:52px;">
+                  <span style="font-size:11px;">秒</span>
+                  <button class="tb-btn" type="button" data-sec="30">30</button>
+                  <button class="tb-btn" type="button" data-sec="60">60</button>
+                  <button class="tb-btn" type="button" data-sec="180">180</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="step-delete">
+              <button class="delete-btn" style="padding:5px;" onclick="deleteStep(${globalIdx})"><i class="fas fa-trash"></i></button>
+            </div>
           `;
+
+          // --- 切り替えロジック ---
+          const compact = item.querySelector('.seq-compact');
+          const editForm = item.querySelector('.seq-edit-form');
+          const inputs = item.querySelectorAll('.seq-input');
+
+          function openEdit() {
+            compact.style.display = 'none';
+            editForm.style.display = 'block';
+            editForm.querySelector('input')?.focus();
+          }
+
+          function saveAndClose() {
+            inputs.forEach(inp => {
+              const gidx = parseInt(inp.dataset.gidx);
+              const field = inp.dataset.field;
+              if (!field || isNaN(gidx)) return;
+              let val = inp.value;
+              if (field === '秒数') val = parseInt(val) || 30;
+              allTasks[gidx][field] = val;
+            });
+            saveTasks();
+            // コンパクト表示更新
+            const t = allTasks[globalIdx];
+            compact.querySelector('.seq-compact-name').textContent = t['項目名'] || '';
+            compact.querySelector('.seq-compact-text').textContent = truncate(t['読み上げテキスト'], 24);
+            compact.querySelector('.seq-compact-memo').textContent = truncate(t['メモ'], 12);
+            compact.querySelector('.seq-compact-time').textContent = (t['秒数'] || 30) + '秒';
+            editForm.style.display = 'none';
+            compact.style.display = '';
+          }
+
+          compact.addEventListener('click', openEdit);
+
+          editForm.addEventListener('focusout', () => {
+            setTimeout(() => {
+              if (!editForm.contains(document.activeElement)) saveAndClose();
+            }, 150);
+          });
+
+          editForm.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') saveAndClose();
+            if (e.key === 'Escape') { editForm.style.display = 'none'; compact.style.display = ''; }
+          });
+
+          editForm.querySelectorAll('.tb-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+              editForm.querySelector('.seq-seconds-input').value = btn.dataset.sec;
+            });
+          });
+
           listContainer.appendChild(item);
         });
         
