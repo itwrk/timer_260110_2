@@ -303,13 +303,50 @@ td { padding: 7px; border-bottom: 1px solid #eee; }
 }
 .icon-item:hover { background: #e8f4fd; border-color: #3498db; }
 
-/* --- 演出 --- */
+/* --- 完了演出 --- */
 .completion-effect-overlay {
   position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-  pointer-events: none; z-index: 2000; opacity: 0; visibility: hidden;
+  pointer-events: none; z-index: 2000;
+  opacity: 0; visibility: hidden;
+  transition: opacity 0.2s;
 }
-.completion-effect-overlay.active { animation: flash 0.5s forwards; }
-@keyframes flash { 0% { opacity: 0; } 30% { opacity: 1; background: rgba(255,255,255,0.5); } 100% { opacity: 0; } }
+.completion-effect-overlay.active {
+  opacity: 1; visibility: visible;
+}
+#confettiCanvas {
+  position: absolute; top: 0; left: 0;
+  width: 100%; height: 100%;
+}
+
+/* 完了メッセージポップアップ */
+.completion-message-popup {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%) scale(0.5);
+  opacity: 0;
+  transition: transform 0.35s cubic-bezier(0.175,0.885,0.32,1.275), opacity 0.3s;
+  text-align: center;
+  background: rgba(255,255,255,0.95);
+  border-radius: 20px;
+  padding: 24px 32px;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.18);
+  pointer-events: none;
+  min-width: 240px; max-width: 80vw;
+}
+.completion-message-popup.show {
+  transform: translate(-50%, -50%) scale(1);
+  opacity: 1;
+}
+.completion-popup-task {
+  font-size: 15px; color: #7f8c8d; font-weight: bold; margin-bottom: 8px;
+}
+.completion-popup-msg {
+  font-size: 26px; font-weight: bold; color: #2c3e50;
+  line-height: 1.3;
+}
+@media (max-width: 600px) {
+  .completion-popup-msg { font-size: 20px; }
+  .completion-message-popup { padding: 18px 20px; }
+}
 
 /* ステップ追加フォーム横並び */
 .step-add-grid { display: flex; flex-direction: column; gap: 6px; }

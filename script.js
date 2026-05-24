@@ -237,54 +237,181 @@ function speak(text) {
 }
 
 // --- 報酬系SE再生（復活） ---
+// =============================================
+// --- 完了演出エンジン ---
+// =============================================
+
+// デフォルトのランダムメッセージ（edit.htmlで編集可能）
+const DEFAULT_COMPLETION_MESSAGES = [
+  '🎉 やったね！最高！',
+  '✨ 完璧すぎて怖い',
+  '🔥 今日も燃えてる！',
+  '💪 さすがすぎる！',
+  '🌟 この調子！最強！',
+  '🎊 完了！えらすぎ！',
+  '😎 クールすぎる仕上がり',
+  '🚀 どこまでも行ける！',
+  '🌈 輝いてるよ！',
+  '👑 今日の主役はあなた！',
+  '💫 積み重ねが未来を作る！',
+  '🎯 一つひとつが確実な前進！',
+  '🌺 よくやった、本当に！',
+  '⚡ そのエネルギー、最高！',
+  '🦋 変化してる、確実に！',
+  '🍀 今日もちゃんとできた！',
+  '🎵 リズムに乗ってる！',
+  '💎 コツコツが一番強い！',
+  '🌙 今夜は気持ちよく眠れる！',
+  '🎈 小さな完了が積み重なる！'
+];
+
+function getCompletionMessages() {
+  const saved = loadFromLocalStorage('lifelisten_completion_messages');
+  return (saved && saved.length) ? saved : DEFAULT_COMPLETION_MESSAGES;
+}
+
+function getRandomMessage() {
+  const msgs = getCompletionMessages();
+  return msgs[Math.floor(Math.random() * msgs.length)];
+}
+
+// ピロン上昇音（ド→ミ→ソ→ド、気持ちよく）
 function playCompletionSound() {
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    // ドーパミンが出るような上昇音 (C5, E5, G5, C6)
-    const notes = [523.25, 659.25, 783.99, 1046.50]; 
-    notes.forEach((f, i) => {
-      const osc = ctx.createOscillator(); 
-      const g = ctx.createGain();
-      osc.connect(g); 
-      g.connect(ctx.destination);
-      osc.frequency.value = f;
-      // 音の立ち上がりと減衰
-      const now = ctx.currentTime + i * 0.15;
-      g.gain.setValueAtTime(0.3, now);
-      g.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
-      osc.start(now); 
-      osc.stop(now + 0.3);
+    const ctx = getAudioContext();
+    const notes = [523.25, 659.25, 783.99, 1046.50];
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      // 少しビブラート感のある音色にするためサイン波+三角波
+      osc.type = 'sine';
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.value = freq;
+      const t = ctx.currentTime + i * 0.13;
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(0.35, t + 0.04);
+      gain.gain.exponentialRampToValueAtTime(0.01, t + 0.35);
+      osc.start(t);
+      osc.stop(t + 0.35);
     });
   } catch(e) {
     console.warn('Audio play failed', e);
   }
 }
 
-function playCompletionEffect() {
+// 紙吹雪＋キラキラ
+function launchConfetti() {
+  const canvas = document.getElementById('confettiCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  const COLORS = ['#f39c12','#e74c3c','#3498db','#2ecc71','#9b59b6','#1abc9c','#e67e22','#f1c40f'];
+  const TOTAL = 120;
+  const particles = [];
+
+  for (let i = 0; i < TOTAL; i++) {
+    const isSparkle = i > TOTAL * 0.7; // 30%はキラキラ
+    particles.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height * 0.4 - canvas.height * 0.1,
+      vx: (Math.random() - 0.5) * 6,
+      vy: Math.random() * 4 + 2,
+      color: COLORS[Math.floor(Math.random() * COLORS.length)],
+      size: isSparkle ? Math.random() * 6 + 3 : Math.random() * 10 + 5,
+      rotation: Math.random() * 360,
+      rotSpeed: (Math.random() - 0.5) * 8,
+      sparkle: isSparkle,
+      alpha: 1,
+      shape: Math.floor(Math.random() * 3) // 0:rect 1:circle 2:star
+    });
+  }
+
+  let frame = 0;
+  const MAX_FRAMES = 100;
+
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    particles.forEach(p => {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.12; // 重力
+      p.rotation += p.rotSpeed;
+      p.alpha = Math.max(0, 1 - frame / MAX_FRAMES);
+
+      ctx.save();
+      ctx.globalAlpha = p.alpha;
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rotation * Math.PI / 180);
+      ctx.fillStyle = p.color;
+
+      if (p.sparkle) {
+        // キラキラ（4点星）
+        ctx.beginPath();
+        for (let k = 0; k < 4; k++) {
+          const angle = (k * Math.PI) / 2;
+          const r = k % 2 === 0 ? p.size : p.size * 0.4;
+          ctx.lineTo(Math.cos(angle) * r, Math.sin(angle) * r);
+        }
+        ctx.closePath();
+        ctx.fill();
+      } else if (p.shape === 1) {
+        // 丸
+        ctx.beginPath();
+        ctx.arc(0, 0, p.size / 2, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        // 長方形（紙吹雪）
+        ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2);
+      }
+      ctx.restore();
+    });
+
+    frame++;
+    if (frame < MAX_FRAMES) {
+      requestAnimationFrame(draw);
+    } else {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+  }
+  draw();
+}
+
+function playCompletionEffect(taskName) {
   const overlay = document.getElementById('completionEffect');
-  const starburst = overlay.querySelector('.starburst');
-  
-  // アニメーションリセット
+  const msgEl   = document.getElementById('completionMessage');
+  if (!overlay) return;
+
+  // メッセージセット
+  const msg = getRandomMessage();
+  if (msgEl) {
+    msgEl.innerHTML = `
+      <div class="completion-popup-task">${taskName} 完了！</div>
+      <div class="completion-popup-msg">${msg}</div>
+    `;
+    msgEl.classList.remove('show');
+    void msgEl.offsetWidth;
+    msgEl.classList.add('show');
+  }
+
+  // オーバーレイ表示
   overlay.classList.remove('active');
-  starburst.classList.remove('active');
-  
-  // DOMリフロー強制
-  void overlay.offsetWidth; 
-  
-  overlay.style.visibility = 'visible';
-  requestAnimationFrame(() => { 
-    overlay.classList.add('active'); 
-    starburst.classList.add('active'); 
-  });
-  
-  // 音声を再生
+  void overlay.offsetWidth;
+  overlay.classList.add('active');
+
+  // 音
   playCompletionSound();
-  
+
+  // 紙吹雪
+  launchConfetti();
+
+  // 3秒後に非表示
   setTimeout(() => {
-    overlay.classList.remove('active'); 
-    starburst.classList.remove('active'); 
-    overlay.style.visibility = 'hidden';
-  }, 1000);
+    overlay.classList.remove('active');
+    if (msgEl) msgEl.classList.remove('show');
+  }, 3500);
 }
 
 // --- データ保存・読み込み（saveToLocalStorage/loadFromLocalStorageはcommon.js） ---
@@ -785,7 +912,7 @@ function handleCompletion() {
   updateProgressRing(0);
   
   // 音声・演出
-  playCompletionEffect();
+  playCompletionEffect(taskName);
   speak(`${taskName}、完了！おつかれさま！`);
   
   // サマリー記録

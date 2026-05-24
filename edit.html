@@ -120,6 +120,29 @@
     </div>
 
     <div id="taskListContainer"></div>
+
+    <!-- ★ 完了メッセージ編集 -->
+    <div class="task-edit-card" style="margin-top:30px;">
+      <div class="task-edit-header" style="cursor:pointer;" onclick="toggleMsgForm()">
+        <div class="task-title-group">
+          <i class="fas fa-star" style="color:#f39c12; font-size:20px;"></i>
+          <span style="font-size:16px; font-weight:bold;">完了メッセージ編集</span>
+        </div>
+        <i class="fas fa-chevron-down" id="msgChevron"></i>
+      </div>
+      <div id="msgFormArea" style="display:none; padding:15px; border-top:1px solid #eee;">
+        <p style="font-size:12px; color:#999; margin:0 0 10px;">タスク完了時にランダムで表示されます。1行1メッセージ。</p>
+        <textarea id="msgTextarea" rows="12" style="width:100%; box-sizing:border-box; font-size:13px; padding:8px; border:1px solid #ddd; border-radius:4px; resize:vertical; line-height:1.8;"></textarea>
+        <div style="display:flex; gap:8px; margin-top:8px;">
+          <button onclick="saveMsgs()" style="padding:8px 18px; background:#2ecc71; color:white; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">
+            <i class="fas fa-save"></i> 保存
+          </button>
+          <button onclick="resetMsgs()" style="padding:8px 14px; background:#e74c3c; color:white; border:none; border-radius:4px; cursor:pointer; font-size:12px;">
+            デフォルトに戻す
+          </button>
+        </div>
+      </div>
+    </div>
     
     <div style="text-align: center; margin-top: 40px;">
         <a href="index.html" class="action-btn" style="text-decoration: none; display: inline-block; width: 200px; text-align: center;">完了して戻る</a>
@@ -384,7 +407,46 @@
       document.getElementById('newTaskChevron').style.transform = '';
     }
 
-    document.addEventListener('DOMContentLoaded', () => { loadTasks(); initModal(); });
+    document.addEventListener('DOMContentLoaded', () => { loadTasks(); initModal(); loadMsgs(); });
+
+    // --- 完了メッセージ管理 ---
+    const MSG_KEY = 'lifelisten_completion_messages';
+
+    function loadMsgs() {
+      const saved = loadFromLocalStorage(MSG_KEY);
+      const msgs = (saved && saved.length) ? saved : getDefaultMsgs();
+      document.getElementById('msgTextarea').value = msgs.join('\n');
+    }
+    function getDefaultMsgs() {
+      return [
+        '🎉 やったね！最高！', '✨ 完璧すぎて怖い', '🔥 今日も燃えてる！',
+        '💪 さすがすぎる！', '🌟 この調子！最強！', '🎊 完了！えらすぎ！',
+        '😎 クールすぎる仕上がり', '🚀 どこまでも行ける！', '🌈 輝いてるよ！',
+        '👑 今日の主役はあなた！', '💫 積み重ねが未来を作る！', '🎯 一つひとつが確実な前進！',
+        '🌺 よくやった、本当に！', '⚡ そのエネルギー、最高！', '🦋 変化してる、確実に！',
+        '🍀 今日もちゃんとできた！', '🎵 リズムに乗ってる！', '💎 コツコツが一番強い！',
+        '🌙 今夜は気持ちよく眠れる！', '🎈 小さな完了が積み重なる！'
+      ];
+    }
+    function saveMsgs() {
+      const lines = document.getElementById('msgTextarea').value
+        .split('\n').map(l => l.trim()).filter(l => l);
+      if (!lines.length) return alert('メッセージを1つ以上入力してください');
+      saveToLocalStorage(MSG_KEY, lines);
+      alert('保存しました！');
+    }
+    function resetMsgs() {
+      if (!confirm('デフォルトのメッセージに戻しますか？')) return;
+      localStorage.removeItem(MSG_KEY);
+      loadMsgs();
+    }
+    function toggleMsgForm() {
+      const area    = document.getElementById('msgFormArea');
+      const chevron = document.getElementById('msgChevron');
+      const isOpen  = area.style.display !== 'none';
+      area.style.display      = isOpen ? 'none' : 'block';
+      chevron.style.transform = isOpen ? '' : 'rotate(180deg)';
+    }
   </script>
 </body>
 </html>
