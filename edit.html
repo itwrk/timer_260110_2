@@ -131,18 +131,260 @@
     </div>
   </div>
 
+  <script src="common.js"></script>
   <script>
-    const STORAGE_KEYS = { ALL_TASKS: 'lifelisten_timer_all_tasks', LAST_CSV: 'lifelisten_timer_last_csv' };
-    const PRESET_ICONS = [
-      'fa-solid fa-bath', 'fa-solid fa-toilet', 'fa-solid fa-bed', 'fa-solid fa-utensils',
-      'fa-solid fa-fire-burner', 'fa-solid fa-broom', 'fa-solid fa-briefcase', 'fa-solid fa-droplet',
-      'fa-solid fa-face-smile', 'fa-solid fa-sun', 'fa-solid fa-person-running', 'fa-solid fa-person-walking',
-      'fa-solid fa-bicycle', 'fa-solid fa-train', 'fa-solid fa-shirt', 'fa-solid fa-tooth',
-      'fa-solid fa-book', 'fa-solid fa-laptop', 'fa-solid fa-mobile-screen', 'fa-solid fa-cart-shopping',
-      'fa-solid fa-yen-sign', 'fa-solid fa-mug-hot', 'fa-solid fa-wine-glass', 'fa-solid fa-music',
-      'fa-solid fa-trash-can', 'fa-solid fa-pills', 'fa-solid fa-hospital', 'fa-solid fa-heart',
-      'fa-solid fa-star', 'fa-solid fa-headphones'
-    ];
+    // 定数・ユーティリティはcommon.jsから参照
+    // STORAGE_KEYS / PRESET_ICONS / saveToLocalStorage / loadFromLocalStorage
+    // migrateTaskData / csvToObjects / objectsToCSV / CSV_HEADERS
+
+    let allTasks = [];
+    let currentEditingTaskName = null;
+
+    // --- データ操作 ---
+    function loadTasks() {
+      const data = loadFromLocalStorage(STORAGE_KEYS.ALL_TASKS);
+      if (data && data.length) {
+        allTasks = migrateTaskData(data);
+        renderAll();
+      } else {
+        document.getElementById('taskListContainer').innerHTML =
+          '<p style="padding:20px; color:#999;">データがありません。トップページでデータを読み込んでください。</p>';
+      }
+    }
+    function saveTasks() {
+      saveToLocalStorage(STORAGE_KEYS.ALL_TASKS, allTasks);
+    }
+
+    // --- レンダリング ---
+    function renderAll() {
+      const container = document.getElementById('taskListContainer');
+      container.innerHTML = '';
+
+      const taskGroups = {}, taskNames = [];
+      allTasks.forEach(task => {
+        const name = task['タスク名'];
+        if (!taskGroups[name]) { taskGroups[name] = []; taskNames.push(name); }
+        taskGroups[name].push(task);
+      });
+
+      taskNames.forEach(name => {
+        const tasks = taskGroups[name];
+        tasks.sort((a, b) => (a['順番'] || 0) - (b['順番'] || 0));
+        const iconClass = tasks[0]['アイコン'] || 'fa-solid fa-headphones';
+        const truncate = (str, len) => str && str.length > len ? str.slice(0, len) + '…' : (str || '');
+
+        const card = document.createElement('div');
+        card.className = 'task-edit-card';
+        card.innerHTML = `
+          <div class="task-edit-header">
+            <div class="task-title-group">
+              <div class="task-icon-display" onclick="openIconModalForTask('${name}')"><i class="${iconClass}"></i></div>
+              <input type="text" class="task-name-edit" value="${name}" onchange="changeTaskName('${name}', this.value)">
+            </div>
+            <div class="task-actions">
+              <button class="delete-btn" style="padding:5px 10px; font-size:12px;" onclick="deleteTaskGroup('${name}')">削除</button>
+            </div>
+          </div>
+          <div class="step-list" id="steps-${CSS.escape(name)}"></div>
+          <div class="add-step-btn-area">
+            <button class="action-btn" style="width:auto; padding:8px 15px; font-size:14px;" onclick="addStepToTask('${name}')">
+              <i class="fas fa-plus"></i> ステップ追加
+            </button>
+          </div>
+        `;
+
+        const listContainer = card.querySelector('.step-list');
+        tasks.forEach(task => {
+          const globalIdx = allTasks.indexOf(task);
+          const item = document.createElement('div');
+          item.className = 'step-item';
+          item.setAttribute('data-id', globalIdx);
+
+          item.innerHTML = `
+            <div class="step-handle"><i class="fas fa-grip-vertical"></i></div>
+            <div class="seq-compact" title="クリックして編集">
+              <span class="seq-compact-name">${task['項目名'] || ''}</span>
+              <span class="seq-compact-text">${truncate(task['読み上げテキスト'], 24)}</span>
+              <span class="seq-compact-memo">${truncate(task['メモ'], 12)}</span>
+              <span class="seq-compact-time">${task['秒数'] || 30}秒</span>
+              <i class="fas fa-pencil-alt seq-edit-icon"></i>
+            </div>
+            <div class="seq-edit-form" style="display:none;">
+              <div class="seq-edit-row">
+                <input type="text" class="seq-input seq-name-input"    value="${task['項目名']||''}"           placeholder="項目名"  data-gidx="${globalIdx}" data-field="項目名">
+                <input type="text" class="seq-input seq-text-input"    value="${task['読み上げテキスト']||''}" placeholder="読み上げ" data-gidx="${globalIdx}" data-field="読み上げテキスト">
+                <input type="text" class="seq-input seq-memo-input"    value="${task['メモ']||''}"             placeholder="メモ"    data-gidx="${globalIdx}" data-field="メモ">
+                <div class="seq-time-wrapper">
+                  <input type="number" class="seq-input seq-seconds-input" value="${task['秒数']||30}" min="1" data-gidx="${globalIdx}" data-field="秒数">
+                  <span style="font-size:11px;">秒</span>
+                  <button class="tb-btn" type="button" data-sec="30">30</button>
+                  <button class="tb-btn" type="button" data-sec="60">60</button>
+                  <button class="tb-btn" type="button" data-sec="180">180</button>
+                </div>
+              </div>
+            </div>
+            <div class="step-delete">
+              <button class="delete-btn" style="padding:5px;" onclick="deleteStep(${globalIdx})"><i class="fas fa-trash"></i></button>
+            </div>
+          `;
+
+          attachInlineEdit(item, globalIdx, truncate);
+          listContainer.appendChild(item);
+        });
+
+        // Sortable
+        new Sortable(listContainer, {
+          handle: '.step-handle', animation: 150, ghostClass: 'sortable-ghost',
+          onEnd() {
+            let order = 1;
+            listContainer.querySelectorAll('.step-item').forEach(el => {
+              allTasks[parseInt(el.getAttribute('data-id'))]['順番'] = order++;
+            });
+            saveTasks();
+            setTimeout(renderAll, 100);
+          }
+        });
+
+        container.appendChild(card);
+      });
+    }
+
+    // インライン編集ロジック（共通）
+    function attachInlineEdit(item, globalIdx, truncate) {
+      const compact  = item.querySelector('.seq-compact');
+      const editForm = item.querySelector('.seq-edit-form');
+      const inputs   = item.querySelectorAll('.seq-input');
+
+      compact.addEventListener('click', () => {
+        compact.style.display = 'none';
+        editForm.style.display = 'block';
+        editForm.querySelector('input')?.focus();
+      });
+
+      function saveAndClose() {
+        inputs.forEach(inp => {
+          const gidx  = parseInt(inp.dataset.gidx);
+          const field = inp.dataset.field;
+          if (!field || isNaN(gidx)) return;
+          allTasks[gidx][field] = field === '秒数' ? (parseInt(inp.value) || 30) : inp.value;
+        });
+        saveTasks();
+        const t = allTasks[globalIdx];
+        compact.querySelector('.seq-compact-name').textContent  = t['項目名'] || '';
+        compact.querySelector('.seq-compact-text').textContent  = truncate(t['読み上げテキスト'], 24);
+        compact.querySelector('.seq-compact-memo').textContent  = truncate(t['メモ'], 12);
+        compact.querySelector('.seq-compact-time').textContent  = (t['秒数'] || 30) + '秒';
+        editForm.style.display = 'none';
+        compact.style.display  = '';
+      }
+
+      editForm.addEventListener('focusout', () => {
+        setTimeout(() => { if (!editForm.contains(document.activeElement)) saveAndClose(); }, 150);
+      });
+      editForm.addEventListener('keydown', e => {
+        if (e.key === 'Enter')  saveAndClose();
+        if (e.key === 'Escape') { editForm.style.display = 'none'; compact.style.display = ''; }
+      });
+      editForm.querySelectorAll('.tb-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          editForm.querySelector('.seq-seconds-input').value = btn.dataset.sec;
+        });
+      });
+    }
+
+    // --- タスク操作 ---
+    function changeTaskName(oldName, newName) {
+      if (!newName) return;
+      allTasks.forEach(t => { if (t['タスク名'] === oldName) t['タスク名'] = newName; });
+      saveTasks(); renderAll();
+    }
+    function addStepToTask(taskName) {
+      const tasks = allTasks.filter(t => t['タスク名'] === taskName);
+      const maxOrder = Math.max(0, ...tasks.map(t => t['順番'] || 0));
+      const icon = tasks[0]?.['アイコン'] || 'fa-solid fa-headphones';
+      allTasks.push({ 'タスク名': taskName, '項目名': '新規ステップ', '読み上げテキスト': '新規ステップ', '秒数': 30, '順番': maxOrder + 1, 'アイコン': icon, 'メモ': '' });
+      saveTasks(); renderAll();
+    }
+    function deleteStep(index) {
+      if (!confirm('削除しますか？')) return;
+      allTasks.splice(index, 1);
+      saveTasks(); renderAll();
+    }
+    function deleteTaskGroup(taskName) {
+      if (!confirm(`タスク「${taskName}」を全て削除しますか？`)) return;
+      allTasks = allTasks.filter(t => t['タスク名'] !== taskName);
+      saveTasks(); renderAll();
+    }
+    function resetAllData() {
+      if (confirm('全てのデータを削除し、初期状態に戻しますか？')) {
+        localStorage.removeItem(STORAGE_KEYS.ALL_TASKS);
+        window.location.href = 'index.html';
+      }
+    }
+
+    // --- アイコンモーダル ---
+    const iconModal     = document.getElementById('iconModal');
+    const presetIconGrid = document.getElementById('presetIconGrid');
+
+    function initModal() {
+      presetIconGrid.innerHTML = '';
+      PRESET_ICONS.forEach(icon => {
+        const div = document.createElement('div');
+        div.className = 'icon-item';
+        div.innerHTML = `<i class="${icon}"></i>`;
+        div.onclick = () => selectIcon(icon);
+        presetIconGrid.appendChild(div);
+      });
+      document.querySelector('.close-modal').onclick = () => iconModal.classList.add('hidden');
+      window.onclick = e => { if (e.target === iconModal) iconModal.classList.add('hidden'); };
+    }
+    function openIconModalForTask(taskName) {
+      currentEditingTaskName = taskName;
+      iconModal.classList.remove('hidden');
+    }
+    function openIconModalForNewTask() {
+      currentEditingTaskName = '__NEW_TASK__';
+      iconModal.classList.remove('hidden');
+    }
+    function selectIcon(iconClass) {
+      if (currentEditingTaskName === '__NEW_TASK__') {
+        document.getElementById('newTaskIconValue').value = iconClass;
+        document.getElementById('newTaskIconPreview').className = iconClass;
+      } else if (currentEditingTaskName) {
+        allTasks.forEach(t => { if (t['タスク名'] === currentEditingTaskName) t['アイコン'] = iconClass; });
+        saveTasks(); renderAll();
+      }
+      iconModal.classList.add('hidden');
+    }
+
+    // --- 新規タスク追加フォーム ---
+    function toggleNewTaskForm() {
+      const area    = document.getElementById('newTaskFormArea');
+      const chevron = document.getElementById('newTaskChevron');
+      const isOpen  = area.style.display !== 'none';
+      area.style.display       = isOpen ? 'none' : 'block';
+      chevron.style.transform  = isOpen ? '' : 'rotate(180deg)';
+    }
+    function addNewTaskFromEdit() {
+      const nameInput = document.getElementById('newTaskName');
+      const iconInput = document.getElementById('newTaskIconValue');
+      const name = nameInput.value.trim();
+      if (!name) return alert('タスク名を入力してください');
+      if (allTasks.some(t => t['タスク名'] === name)) return alert('同じ名前のタスクが既にあります');
+      allTasks.push({
+        'タスク名': name, '項目名': '1回目', '読み上げテキスト': name + 'を始めます',
+        '秒数': 30, '順番': 1, 'アイコン': iconInput.value || 'fa-solid fa-headphones', 'メモ': ''
+      });
+      saveTasks(); renderAll();
+      nameInput.value = '';
+      document.getElementById('newTaskFormArea').style.display  = 'none';
+      document.getElementById('newTaskChevron').style.transform = '';
+    }
+
+    document.addEventListener('DOMContentLoaded', () => { loadTasks(); initModal(); });
+  </script>
+</body>
+</html>
 
     let allTasks = [];
     let currentEditingTaskName = null;

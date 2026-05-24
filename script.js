@@ -1,44 +1,24 @@
 // --- グローバルステート ---
-let allTasks = [];           
-let sequenceTasks = [];      
-let sequenceIndex = 0;       
-let remainingSeconds = 0;    
-let timerId = null;          
-let preId = null;            
-let taskStartTime = null;    
-let results = [];            
-let isCompletionHandled = false; 
-let summaryResults = [];     
-let memoResults = [];        // ★ メモログ
-let currentSessionMemo = ''; // ★ 実行中のメモ（一時保持）
-let pausedRemainingSeconds = 0; 
-let pausedStartTime = null;  
-let isPaused = false;        
-let sortableInstance = null; 
-let isStepCompleted = false; 
-let currentRunStartIndex = 0; 
-let currentLogView = 'detail'; 
-
-// --- LocalStorage ---
-const STORAGE_KEYS = {
-  ALL_TASKS: 'lifelisten_timer_all_tasks',
-  RESULTS: 'lifelisten_timer_results',
-  SUMMARY_RESULTS: 'lifelisten_timer_summary_results',
-  MEMO_RESULTS: 'lifelisten_timer_memo_results', // ★ 追加
-  LAST_CSV: 'lifelisten_timer_last_csv'
-};
-
-// --- アイコンプリセット ---
-const PRESET_ICONS = [
-  'fa-solid fa-bath', 'fa-solid fa-toilet', 'fa-solid fa-bed', 'fa-solid fa-utensils',
-  'fa-solid fa-fire-burner', 'fa-solid fa-broom', 'fa-solid fa-briefcase', 'fa-solid fa-droplet',
-  'fa-solid fa-face-smile', 'fa-solid fa-sun', 'fa-solid fa-person-running', 'fa-solid fa-person-walking',
-  'fa-solid fa-bicycle', 'fa-solid fa-train', 'fa-solid fa-shirt', 'fa-solid fa-tooth',
-  'fa-solid fa-book', 'fa-solid fa-laptop', 'fa-solid fa-mobile-screen', 'fa-solid fa-cart-shopping',
-  'fa-solid fa-yen-sign', 'fa-solid fa-mug-hot', 'fa-solid fa-wine-glass', 'fa-solid fa-music',
-  'fa-solid fa-trash-can', 'fa-solid fa-pills', 'fa-solid fa-hospital', 'fa-solid fa-heart',
-  'fa-solid fa-star', 'fa-solid fa-headphones'
-];
+// 定数・ユーティリティはcommon.jsで定義
+let allTasks = [];
+let sequenceTasks = [];
+let sequenceIndex = 0;
+let remainingSeconds = 0;
+let timerId = null;
+let preId = null;
+let taskStartTime = null;
+let results = [];
+let isCompletionHandled = false;
+let summaryResults = [];
+let memoResults = [];
+let currentSessionMemo = '';
+let pausedRemainingSeconds = 0;
+let pausedStartTime = null;
+let isPaused = false;
+let sortableInstance = null;
+let isStepCompleted = false;
+let currentRunStartIndex = 0;
+let currentLogView = 'detail';
 
 // --- DOM要素 ---
 const importCsvInput = document.getElementById('importCsvInput');
@@ -307,61 +287,31 @@ function playCompletionEffect() {
   }, 1000);
 }
 
-// --- データ保存・読み込み ---
-function saveToLocalStorage(key, data) {
-  try { localStorage.setItem(key, JSON.stringify(data)); return true; } catch (e) { return false; }
-}
-function loadFromLocalStorage(key) {
-  try { return JSON.parse(localStorage.getItem(key)); } catch (e) { return null; }
-}
-function saveTasksData() { saveToLocalStorage(STORAGE_KEYS.ALL_TASKS, allTasks); }
-function saveResultsData() {
-  saveToLocalStorage(STORAGE_KEYS.RESULTS, results);
+// --- データ保存・読み込み（saveToLocalStorage/loadFromLocalStorageはcommon.js） ---
+function saveTasksData()    { saveToLocalStorage(STORAGE_KEYS.ALL_TASKS, allTasks); }
+function saveResultsData()  {
+  saveToLocalStorage(STORAGE_KEYS.RESULTS,         results);
   saveToLocalStorage(STORAGE_KEYS.SUMMARY_RESULTS, summaryResults);
-  saveToLocalStorage(STORAGE_KEYS.MEMO_RESULTS, memoResults);
+  saveToLocalStorage(STORAGE_KEYS.MEMO_RESULTS,    memoResults);
 }
 
+// CSVを読み込んでセットアップ（パーサーはcommon.js）
 function parseAndSetupCSV(csvText) {
-  const lines = csvText.split(/\r?\n/).filter(l => l.trim());
-  if (lines.length < 2) return console.warn('CSV無効');
-  const headers = lines[0].split(',').map(h => h.trim());
-  allTasks = lines.slice(1).map(line => {
-    const cols = line.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || [];
-    return headers.reduce((obj, h, i) => {
-      let v = (cols[i]||'').replace(/^"|"$/g,'').trim();
-      if (h==='秒数'||h==='順番') v = Number(v);
-      obj[h] = v;
-      return obj;
-    }, {});
-  });
-  migrateData();
+  const objects = csvToObjects(csvText);
+  if (!objects.length) return console.warn('CSV無効またはデータなし');
+  allTasks = migrateTaskData(objects);
   saveToLocalStorage(STORAGE_KEYS.LAST_CSV, csvText);
   saveTasksData();
   setupTaskButtons();
 }
 
-function migrateData() {
-  if (!allTasks || !Array.isArray(allTasks)) { allTasks = []; return; }
-  allTasks.forEach(task => {
-    if (!task.hasOwnProperty('アイコン')) task['アイコン'] = 'fa-solid fa-headphones';
-    if (!task.hasOwnProperty('メモ')) task['メモ'] = '';
-    if (typeof task['秒数'] !== 'number') task['秒数'] = parseInt(task['秒数']) || 30;
-    if (typeof task['順番'] !== 'number') task['順番'] = 1;
-  });
-}
+// migrateDataはcommon.jsのmigrateTaskDataを使用
+function migrateData() { allTasks = migrateTaskData(allTasks); }
 
+// エクスポート用CSV生成（objectsToCSVはcommon.js）
 function updateCSVData() {
-  const headers = ['タスク名', '項目名', '読み上げテキスト', '秒数', '順番', 'アイコン', 'メモ'];
-  let csvContent = headers.join(',') + '\n';
-  allTasks.forEach(task => {
-    const row = headers.map(header => {
-      let value = task[header] || '';
-      if (typeof value === 'string') value = `"${value.replace(/"/g, '""')}"`;
-      return value;
-    });
-    csvContent += row.join(',') + '\n';
-  });
-  saveToLocalStorage(STORAGE_KEYS.LAST_CSV, csvContent);
+  const csv = objectsToCSV(allTasks, CSV_HEADERS);
+  saveToLocalStorage(STORAGE_KEYS.LAST_CSV, csv);
 }
 
 function initApp() {
