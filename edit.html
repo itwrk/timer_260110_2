@@ -221,6 +221,7 @@
                   <button class="tb-btn" type="button" data-sec="60">60</button>
                   <button class="tb-btn" type="button" data-sec="180">180</button>
                 </div>
+                <button class="seq-save-btn" type="button" title="保存"><i class="fas fa-check"></i></button>
               </div>
             </div>
             <div class="step-delete">
@@ -254,6 +255,7 @@
       const compact  = item.querySelector('.seq-compact');
       const editForm = item.querySelector('.seq-edit-form');
       const inputs   = item.querySelectorAll('.seq-input');
+      const saveBtn  = item.querySelector('.seq-save-btn');
 
       compact.addEventListener('click', () => {
         compact.style.display = 'none';
@@ -278,9 +280,10 @@
         compact.style.display  = '';
       }
 
-      editForm.addEventListener('focusout', () => {
-        setTimeout(() => { if (!editForm.contains(document.activeElement)) saveAndClose(); }, 150);
-      });
+      // ✓ボタンで保存
+      saveBtn.addEventListener('click', saveAndClose);
+
+      // Enterで保存、Escapeでキャンセル
       editForm.addEventListener('keydown', e => {
         if (e.key === 'Enter')  saveAndClose();
         if (e.key === 'Escape') { editForm.style.display = 'none'; compact.style.display = ''; }
@@ -512,11 +515,8 @@
 
           compact.addEventListener('click', openEdit);
 
-          editForm.addEventListener('focusout', () => {
-            setTimeout(() => {
-              if (!editForm.contains(document.activeElement)) saveAndClose();
-            }, 150);
-          });
+          // ✓ボタンで保存
+          item.querySelector('.seq-save-btn').addEventListener('click', saveAndClose);
 
           editForm.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') saveAndClose();

@@ -409,6 +409,17 @@ td { padding: 7px; border-bottom: 1px solid #eee; }
 .seq-input.seq-memo-input   { flex: 1; min-width: 80px; background: #fffde7; }
 .seq-input.seq-seconds-input { width: 52px; text-align: center; }
 
+/* ✓ 保存ボタン */
+.seq-save-btn {
+  flex-shrink: 0;
+  background: #2ecc71; color: white;
+  border: none; border-radius: 5px;
+  padding: 5px 10px; font-size: 13px;
+  cursor: pointer; transition: background 0.15s;
+  align-self: center;
+}
+.seq-save-btn:hover { background: #27ae60; }
+
 /* =============================================
    PC（601px以上）
    ============================================= */

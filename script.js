@@ -881,6 +881,7 @@ function renderSequenceList(name) {
             <button class="mini-qt-btn" type="button" data-idx="${i}" data-sec="30">30</button>
             <button class="mini-qt-btn" type="button" data-idx="${i}" data-sec="60">60</button>
           </div>
+          <button class="seq-save-btn" type="button" title="保存"><i class="fas fa-check"></i></button>
         </div>
       </div>
 
@@ -891,16 +892,15 @@ function renderSequenceList(name) {
     const compact = item.querySelector('.seq-compact');
     const editForm = item.querySelector('.seq-edit-form');
     const inputs = item.querySelectorAll('.seq-input');
+    const saveBtn = item.querySelector('.seq-save-btn');
 
     function openEdit() {
       compact.style.display = 'none';
       editForm.style.display = 'block';
-      // 最初の入力欄にフォーカス
       editForm.querySelector('input')?.focus();
     }
 
     function saveAndClose() {
-      // 全フィールドを保存
       inputs.forEach(input => {
         const idx = parseInt(input.dataset.idx);
         const field = input.dataset.field;
@@ -910,7 +910,6 @@ function renderSequenceList(name) {
         sequenceTasks[idx][field] = val;
       });
       saveTasksData();
-      // コンパクト表示を更新してから閉じる
       const idx = i;
       const t = sequenceTasks[idx];
       compact.querySelector('.seq-compact-name').textContent = t['項目名'] || '';
@@ -925,31 +924,19 @@ function renderSequenceList(name) {
     // クリック/タップで開く
     compact.addEventListener('click', openEdit);
 
-    // フォームの外クリックで保存・閉じる
-    // focusoutはフォーム内の移動でも発火するので少し待つ
-    editForm.addEventListener('focusout', (e) => {
-      setTimeout(() => {
-        if (!editForm.contains(document.activeElement)) {
-          saveAndClose();
-        }
-      }, 150);
-    });
+    // ✓ボタンで保存
+    saveBtn.addEventListener('click', saveAndClose);
 
-    // Enterキーでも保存
+    // Enterキーでも保存、Escapeでキャンセル（保存なし）
     editForm.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') { saveAndClose(); }
-      if (e.key === 'Escape') {
-        editForm.style.display = 'none';
-        compact.style.display = '';
-      }
+      if (e.key === 'Enter')  { saveAndClose(); }
+      if (e.key === 'Escape') { editForm.style.display = 'none'; compact.style.display = ''; }
     });
 
     // クイックタイムボタン
     editForm.querySelectorAll('.mini-qt-btn').forEach(btn => {
       btn.addEventListener('click', () => {
-        const sec = parseInt(btn.dataset.sec);
-        const secInput = editForm.querySelector('.seq-seconds-input');
-        secInput.value = sec;
+        editForm.querySelector('.seq-seconds-input').value = parseInt(btn.dataset.sec);
       });
     });
 
