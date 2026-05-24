@@ -9,6 +9,8 @@ let taskStartTime = null;
 let results = [];            
 let isCompletionHandled = false; 
 let summaryResults = [];     
+let memoResults = [];        // ★ メモログ
+let currentSessionMemo = ''; // ★ 実行中のメモ（一時保持）
 let pausedRemainingSeconds = 0; 
 let pausedStartTime = null;  
 let isPaused = false;        
@@ -22,6 +24,7 @@ const STORAGE_KEYS = {
   ALL_TASKS: 'lifelisten_timer_all_tasks',
   RESULTS: 'lifelisten_timer_results',
   SUMMARY_RESULTS: 'lifelisten_timer_summary_results',
+  MEMO_RESULTS: 'lifelisten_timer_memo_results', // ★ 追加
   LAST_CSV: 'lifelisten_timer_last_csv'
 };
 
@@ -315,6 +318,7 @@ function saveTasksData() { saveToLocalStorage(STORAGE_KEYS.ALL_TASKS, allTasks);
 function saveResultsData() {
   saveToLocalStorage(STORAGE_KEYS.RESULTS, results);
   saveToLocalStorage(STORAGE_KEYS.SUMMARY_RESULTS, summaryResults);
+  saveToLocalStorage(STORAGE_KEYS.MEMO_RESULTS, memoResults);
 }
 
 function parseAndSetupCSV(csvText) {
@@ -373,7 +377,10 @@ function initApp() {
   const savedResults = loadFromLocalStorage(STORAGE_KEYS.RESULTS);
   if (savedResults) results = savedResults;
   const savedSummary = loadFromLocalStorage(STORAGE_KEYS.SUMMARY_RESULTS);
-  if (savedSummary) { summaryResults = savedSummary; updateResultsTable(); }
+  if (savedSummary) { summaryResults = savedSummary; }
+  const savedMemo = loadFromLocalStorage(STORAGE_KEYS.MEMO_RESULTS);
+  if (savedMemo) { memoResults = savedMemo; }
+  updateResultsTable();
 }
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -573,6 +580,9 @@ function startSequenceFor(name) {
   
   // iOS音声途切れ対策：タスク実行中はkeepAliveを起動
   startSpeechKeepAlive();
+
+  // ★ メモ入力欄を表示
+  showMemoArea();
   
   runNextStep();
 }
@@ -757,23 +767,29 @@ prevButton.addEventListener('click', () => {
 
 // 【修正】終了ボタンの挙動：即時停止・リセット
 endButton.addEventListener('click', () => {
-  if (isCompletionHandled) return; // 既に終了処理中なら無視
-  
-  // タイマー停止
+  if (isCompletionHandled) return;
   if (timerId) clearInterval(timerId); timerId = null;
   if (preId) clearInterval(preId); preId = null;
-  
-  // keepAlive停止
   stopSpeechKeepAlive();
-  
-  // ログ記録（現在のステップまでの分）
   if (sequenceIndex < sequenceTasks.length) {
-      recordCurrentTaskResult(remainingSeconds > 0);
+    recordCurrentTaskResult(remainingSeconds > 0);
   }
-  
-  // 完了処理へ
   handleCompletion();
 });
+
+// ★ メモ入力欄の制御
+function showMemoArea() {
+  const area = document.getElementById('sessionMemoArea');
+  if (!area) return;
+  area.classList.remove('hidden');
+  // 前回のメモをクリア
+  const input = document.getElementById('sessionMemoInput');
+  if (input) { input.value = ''; currentSessionMemo = ''; }
+}
+function hideMemoArea() {
+  const area = document.getElementById('sessionMemoArea');
+  if (area) area.classList.add('hidden');
+}
 
 function handleCompletion() {
   if (isCompletionHandled) return;
@@ -783,6 +799,22 @@ function handleCompletion() {
   stopSpeechKeepAlive();
   
   const taskName = sequenceTasks.length > 0 ? sequenceTasks[0]['タスク名'] : 'タスク';
+
+  // ★ メモを保存
+  const memoInput = document.getElementById('sessionMemoInput');
+  const memoText = memoInput ? memoInput.value.trim() : '';
+  if (memoText) {
+    memoResults.push({
+      date: new Date().toLocaleString(),
+      taskName: taskName,
+      seconds: (() => {
+        const currentRun = results.slice(currentRunStartIndex);
+        return currentRun.reduce((s, r) => s + r.seconds, 0);
+      })(),
+      memo: memoText
+    });
+  }
+  hideMemoArea();
   
   // 画面リセット
   const stepInfoCol = document.getElementById('stepInfoCol');
@@ -1025,7 +1057,10 @@ function initSortable() {
 
 function updateResultsTable() {
   resultsTableBody.innerHTML = '';
+  const header = document.getElementById('resultsTableHeader');
+
   if (currentLogView === 'detail') {
+    if (header) header.innerHTML = '<th>日時</th><th>経過時間</th><th>内容</th>';
     results.forEach(r => {
       const tr = document.createElement('tr');
       const endDate = new Date(r.date);
@@ -1033,38 +1068,66 @@ function updateResultsTable() {
       tr.innerHTML = `<td>${formatDateRange(startDate, endDate)}</td><td>${formatDuration(r.seconds)}</td><td>${r.content}</td>`;
       resultsTableBody.appendChild(tr);
     });
-  } else {
+  } else if (currentLogView === 'summary') {
+    if (header) header.innerHTML = '<th>日時</th><th>経過時間</th><th>内容</th>';
     summaryResults.forEach(r => {
       const tr = document.createElement('tr');
       const taskName = r.content.replace(/\s*\(.*/, '');
       tr.innerHTML = `<td>${r.date}</td><td>${formatDuration(r.seconds)}</td><td>${taskName}</td>`;
       resultsTableBody.appendChild(tr);
     });
+  } else if (currentLogView === 'memo') {
+    if (header) header.innerHTML = '<th>日時</th><th>タスク名</th><th>メモ</th>';
+    if (memoResults.length === 0) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td colspan="3" style="text-align:center; color:#aaa;">メモはまだありません</td>';
+      resultsTableBody.appendChild(tr);
+    } else {
+      memoResults.slice().reverse().forEach(r => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="white-space:nowrap; font-size:11px;">${r.date}</td>
+          <td style="white-space:nowrap;">${r.taskName}</td>
+          <td style="white-space:pre-wrap; word-break:break-all;">${r.memo}</td>
+        `;
+        resultsTableBody.appendChild(tr);
+      });
+    }
   }
 }
 
 clearResultsButton.onclick = () => {
-  if(confirm('ログ消去？')) { results=[]; summaryResults=[]; saveResultsData(); updateResultsTable(); }
+  if (!confirm('ログを消去しますか？')) return;
+  if (currentLogView === 'memo') {
+    memoResults = [];
+  } else {
+    results = []; summaryResults = [];
+  }
+  saveResultsData();
+  updateResultsTable();
 };
 
 copyResultsButton.onclick = () => {
-  if (results.length===0 && summaryResults.length===0) return alert('ログなし');
   let text = '';
   if (currentLogView === 'detail') {
+    if (results.length === 0) return alert('ログなし');
     text = results.map(r => {
       const endDate = new Date(r.date);
       const startDate = new Date(endDate.getTime() - (r.seconds * 1000));
       return `${formatDateRange(startDate, endDate)}\t${formatDuration(r.seconds)}\t${r.content}`;
     }).join('\n');
-  } else {
+  } else if (currentLogView === 'summary') {
+    if (summaryResults.length === 0) return alert('ログなし');
     text = summaryResults.map(r => {
-      const taskNameMatch = r.content.match(/^(.+?)\s*\(/);
-      const taskName = taskNameMatch ? taskNameMatch[1] : r.content;
-      let dateRangeStr = r.startTime && r.endTime ? formatDateRange(r.startTime, r.endTime) : r.date;
-      return `${dateRangeStr}\t${formatDuration(r.seconds)}\t${taskName}`;
+      const taskName = r.content.replace(/\s*\(.*/, '');
+      const dateStr = r.startTime && r.endTime ? formatDateRange(r.startTime, r.endTime) : r.date;
+      return `${dateStr}\t${formatDuration(r.seconds)}\t${taskName}`;
     }).join('\n');
+  } else if (currentLogView === 'memo') {
+    if (memoResults.length === 0) return alert('メモなし');
+    text = memoResults.map(r => `${r.date}\t${r.taskName}\t${r.memo}`).join('\n');
   }
-  navigator.clipboard.writeText(text).then(()=>alert('コピー完了'));
+  navigator.clipboard.writeText(text).then(() => alert('コピー完了'));
 };
 
 exportCsvButton.addEventListener('click', () => {

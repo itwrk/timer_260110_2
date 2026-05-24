@@ -59,6 +59,14 @@
       </div>
     </div>
 
+    <!-- ★ 実行中メモ入力欄（タスク実行中のみ表示） -->
+    <div id="sessionMemoArea" class="session-memo-area hidden">
+      <label class="session-memo-label"><i class="fas fa-pencil-alt"></i> メモ</label>
+      <input type="text" id="sessionMemoInput" class="session-memo-input"
+        placeholder="気づいたこと、感じたことを入力…（タスク完了時に自動保存）"
+        oninput="currentSessionMemo = this.value">
+    </div>
+
     <!-- コントロール -->
     <div class="settings-container hidden" id="timerSettings">
       <label class="toggle-switch">
@@ -132,6 +140,7 @@
       <div class="log-tabs">
         <button class="log-tab-btn active" data-view="detail">詳細ログ</button>
         <button class="log-tab-btn" data-view="summary">サマリー</button>
+        <button class="log-tab-btn" data-view="memo"><i class="fas fa-pencil-alt"></i> メモ</button>
       </div>
       <table id="resultsTable">
         <thead>
